@@ -15,6 +15,7 @@ void send_echo(int sock)
     {
         char sendline [MAXLINE] = {};
         fgets(sendline, MAXLINE, stdin);
+        
         write(sock, sendline, strlen(sendline));
     }
 }
