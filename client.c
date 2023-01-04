@@ -9,13 +9,47 @@
 #define MAXLINE 4096
 #define TRUE 1
 
+void protocolo(char *mensaje,int sock){
+    char destino[15] = {};
+    char newMessage[MAXLINE] = {};
+    for (int i = 0; i < 15; i++) {
+        destino[i] = '\0';
+    }
+    if(mensaje[0] == '_'){
+        int i;
+        for (i = 1; i < strlen(mensaje) && i < 15; i++)
+        {
+            if(mensaje[i] == '_'){
+                i = i+2;
+                break;
+            }
+            else{
+                destino[i-1] = mensaje[i];
+            }
+        }
+        int recorrer = 0;
+        for (int j = i;i<strlen(mensaje);i++){
+            if(mensaje[i] != '\n'){
+                newMessage[recorrer] = mensaje[i];
+                recorrer++;
+            }
+        }
+        
+        write()
+    }
+}
+
+
+
 void send_echo(int sock)
 {
     while(TRUE)
     {
         char sendline [MAXLINE] = {};
-        fgets(sendline, MAXLINE, stdin);        
+        fgets(sendline, MAXLINE, stdin);
+        //protocolo(sendline,sock);
         write(sock, sendline, strlen(sendline));
+
     }
 }
 

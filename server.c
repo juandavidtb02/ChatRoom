@@ -17,8 +17,8 @@
 int client_sockets[MAX_CLIENTS];
 int num_clients = 0;
 
-char *names[SIZE];
-char *ips[SIZE];
+char *names[MAX_CLIENTS];
+char *ips[MAX_CLIENTS];
 
 
 
@@ -74,26 +74,48 @@ void send_message_to_all_clients(char *message,int sock)
 {
     for (int i = 0; i < num_clients; i++)
     {
-        if(sock != client_sockets[i]){
-            write(client_sockets[i], message, strlen(message));
+        if(client_sockets[i] != 0){
+            if(sock != client_sockets[i]){
+                write(client_sockets[i], message, strlen(message));
+            }
         }
     }
 }
 
 void newClient(char *name,char *ip,int sock){
-    char *nname = strtok(name,"\n");
-    names[num_clients] = malloc(strlen(nname) + 1);
-    strcpy(names[num_clients],nname);
-        
-    for(int i=0;i<SIZE;i++){
-        if(strcmp(ips[i], "") == 0){
-            ips[i] = ip;
+    if(num_clients >= MAX_CLIENTS){
+        // gestionar cola de clientes
+        printf("Servidor lleno!\n");
+        return;
+    }
+    int i;
+    for(i = 0; i < MAX_CLIENTS; i++) {
+        if(client_sockets[i] == 0) {
+            client_sockets[i] = sock;
+            break;
         }
     }
+    char *nname = strtok(name,"\n");
+    names[i] = malloc(strlen(nname) + 1);
+    strcpy(names[i],nname);
+    num_clients++;   
+    
+    ips[i] = malloc(strlen(ip) + 1);
+    strcpy(ips[i],ip);
 
     printf("%s se ha conectado desde la direccion IP %s\n",nname,ip);
     send_message_to_all_clients(concatenar(" se ha conectado!\n",name,0),sock);
 
+}
+
+void desconectar(int id,int sock){
+    printf("%s (%s) se ha desconectado\n",names[id],ips[id]);
+    send_message_to_all_clients(concatenar(" se ha desconectado!\n",names[id],0),sock);
+    close(client_sockets[id]);
+    names[id] = "";
+    ips[id] = "";
+    client_sockets[id] = 0;
+    num_clients--;
 }
 
 void service(int sock)
@@ -110,8 +132,7 @@ void service(int sock)
         int r = read(sock, line, MAXLINE);
         if (r == 0)
         {
-            printf("%s se ha desconectado\n",names[id]);
-            send_message_to_all_clients(concatenar(" se ha desconectado\n",names[id],r),sock);
+            desconectar(id,sock);
             shutdown(sock, SHUT_RDWR);
             pthread_detach(pthread_self());
             return;
@@ -146,11 +167,10 @@ int main(int argc, char *argv[])
     fprintf(stdout, "The server is running on port %d\n", port);
 
     socklen_t client_addr_len = sizeof(adr);
-    for(int i=0;i<SIZE;i++){
+    for(int i=0;i<MAX_CLIENTS;i++){
         names[i] = "";
-    }
-    for(int i=0;i<SIZE;i++){
         ips[i] = "";
+        client_sockets[i] = 0;
     }
     while(TRUE)
     {
@@ -168,12 +188,10 @@ int main(int argc, char *argv[])
         }
 
         read(service_socket, name, MAXLINE);
-        client_sockets[num_clients] = service_socket;
         newClient(name,client_ip,service_socket);
-        num_clients++;
         pthread_t service_thread_id;
         pthread_create(&service_thread_id, NULL, service_thread, (void*)service_socket);
     } 
-
+    close(listen_socket);
     return 0;
 }
