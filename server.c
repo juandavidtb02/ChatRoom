@@ -21,19 +21,7 @@ char *names[SIZE];
 char *ips[SIZE];
 
 
-void newClient(char *name,char *ip){
-    char *nname = strtok(name,"\n");
-    names[num_clients] = malloc(strlen(nname) + 1);
-    strcpy(names[num_clients],nname);
-        
-    for(int i=0;i<SIZE;i++){
-        if(strcmp(ips[i], "") == 0){
-            ips[i] = ip;
-        }
-    }
 
-    printf("%s se ha conectado desde la direccion IP %s\n",nname,ip);
-}
 
 int createSocket(int *port, int type)
 {
@@ -71,17 +59,41 @@ int createSocket(int *port, int type)
     return sockfd;
 }
 
-void send_message_to_all_clients(char *message,char *name)
-{
+
+char *concatenar(char *message,char *name,int r){
     char *mensaje = malloc(MAXLINE);
     strcat(mensaje, name);
-    strcat(mensaje, ": ");
+    if(r!=0){
+        strcat(mensaje, ": ");
+    }
     strcat(mensaje, message);
-    printf("%s\n",name);
+    return mensaje;
+}
+
+void send_message_to_all_clients(char *message,int sock)
+{
     for (int i = 0; i < num_clients; i++)
     {
-        write(client_sockets[i], mensaje, strlen(mensaje));
+        if(sock != client_sockets[i]){
+            write(client_sockets[i], message, strlen(message));
+        }
     }
+}
+
+void newClient(char *name,char *ip,int sock){
+    char *nname = strtok(name,"\n");
+    names[num_clients] = malloc(strlen(nname) + 1);
+    strcpy(names[num_clients],nname);
+        
+    for(int i=0;i<SIZE;i++){
+        if(strcmp(ips[i], "") == 0){
+            ips[i] = ip;
+        }
+    }
+
+    printf("%s se ha conectado desde la direccion IP %s\n",nname,ip);
+    send_message_to_all_clients(concatenar(" se ha conectado!\n",name,0),sock);
+
 }
 
 void service(int sock)
@@ -98,13 +110,13 @@ void service(int sock)
         int r = read(sock, line, MAXLINE);
         if (r == 0)
         {
-            printf("Desconectado\n");
+            printf("%s se ha desconectado\n",names[id]);
+            send_message_to_all_clients(concatenar(" se ha desconectado\n",names[id],r),sock);
             shutdown(sock, SHUT_RDWR);
             pthread_detach(pthread_self());
             return;
         }
-        
-        send_message_to_all_clients(line,names[id]);
+        send_message_to_all_clients(concatenar(line,names[id],r),sock);
     }
 }
 
@@ -157,7 +169,7 @@ int main(int argc, char *argv[])
 
         read(service_socket, name, MAXLINE);
         client_sockets[num_clients] = service_socket;
-        newClient(name,client_ip);
+        newClient(name,client_ip,service_socket);
         num_clients++;
         pthread_t service_thread_id;
         pthread_create(&service_thread_id, NULL, service_thread, (void*)service_socket);
