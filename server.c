@@ -67,6 +67,11 @@ char *concatenar(char *message,char *name,int r){
         strcat(mensaje, ": ");
     }
     strcat(mensaje, message);
+    if(r==0){
+        for(int i=0;i<strlen(mensaje)-1;i++){
+            mensaje[i] = mensaje[i]+1;
+        }    
+    }
     return mensaje;
 }
 
@@ -85,7 +90,7 @@ void send_message_to_all_clients(char *message,int sock)
 void newClient(char *name,char *ip,int sock){
     if(num_clients >= MAX_CLIENTS){
         // gestionar cola de clientes
-        printf("Servidor lleno!\n");
+        printf("Server full!\n");
         return;
     }
     int i;
@@ -103,14 +108,14 @@ void newClient(char *name,char *ip,int sock){
     ips[i] = malloc(strlen(ip) + 1);
     strcpy(ips[i],ip);
 
-    printf("%s se ha conectado desde la direccion IP %s\n",nname,ip);
-    send_message_to_all_clients(concatenar(" se ha conectado!\n",name,0),sock);
+    printf("%s has connected from IP address %s\n",nname,ip);
+    send_message_to_all_clients(concatenar(" has connected!\n",name,0),sock);
 
 }
 
 void desconectar(int id,int sock){
-    printf("%s (%s) se ha desconectado\n",names[id],ips[id]);
-    send_message_to_all_clients(concatenar(" se ha desconectado!\n",names[id],0),sock);
+    printf("%s (%s) has disconnected\n",names[id],ips[id]);
+    send_message_to_all_clients(concatenar(" has disconnected!\n",names[id],0),sock);
     close(client_sockets[id]);
     names[id] = "";
     ips[id] = "";

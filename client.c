@@ -4,39 +4,106 @@
 #include<sys/socket.h>
 #include<netdb.h>
 #include<pthread.h>
+
 //Constant
 #define SIZE 256
 #define MAXLINE 4096
 #define TRUE 1
+#define FALSE 0
 
-void protocolo(char *mensaje,int sock){
-    char destino[15] = {};
-    char newMessage[MAXLINE] = {};
-    for (int i = 0; i < 15; i++) {
-        destino[i] = '\0';
+char name[SIZE] = {};
+
+char *descrypt(char *message){
+    for(int i=0;i<strlen(message)-1;i++){
+        message[i] = message[i]-1;
     }
-    if(mensaje[0] == '_'){
-        int i;
-        for (i = 1; i < strlen(mensaje) && i < 15; i++)
+    return message;
+}
+
+char *encrypt(char *message,int sock){
+    for(int i=0;i<strlen(message)-1;i++){
+        message[i] = message[i]+1; //para encriptar, se suma 1 al caracter
+    }
+    write(sock, message, strlen(message));
+}
+
+
+void protocol(char *message){
+    char buffer[MAXLINE] = {};
+    char messageReceived[MAXLINE] = {};
+    char destino[MAXLINE] = {};
+    char origen[SIZE] = {};
+    for(int j=0;j<strlen(message);j++){ //verifica si es un mensaje del servidor o de otro usuario
+        if(message[j] != ':' && message[j+1] != ' '){
+            origen[j] = message[j];
+        }
+        else{
+            int recorrer=0;
+            for (int k = j+2; k < strlen(message); k++)
+            {
+                messageReceived[recorrer] = message[k];
+                recorrer++;
+            }    
+            break;
+        }
+    }
+    char checkProtocol = FALSE;
+    int i;
+    if(messageReceived[0]-1 == '_'){ //verifica si el mensaje es privado mediante el protocolo
+        int indice = 0;
+        for (i = 1; i < strlen(messageReceived); i++) //verifica si el protocolo es correcto "_nombre_"
         {
-            if(mensaje[i] == '_'){
-                i = i+2;
-                break;
+            if(messageReceived[i]-1 != '_'){
+                destino[indice] = messageReceived[i]-1;
+                indice++;
             }
             else{
-                destino[i-1] = mensaje[i];
+                checkProtocol = TRUE;
+                if(messageReceived[i+1]-1 == ' '){
+                    i = i+2;
+                }
+                else{
+                    i = i+1;
+                }
+                break;
             }
         }
-        int recorrer = 0;
-        for (int j = i;i<strlen(mensaje);i++){
-            if(mensaje[i] != '\n'){
-                newMessage[recorrer] = mensaje[i];
-                recorrer++;
-            }
+
+        if(checkProtocol==FALSE){ //en caso de que no sea correcto, el mensaje se desencripta y se muestra
+            strcat(buffer, origen);
+            strcat(buffer, ": ");
+            strcat(buffer,descrypt(messageReceived));
+            printf("%s",buffer);
+            return;
         }
-        
-        write()
+        strcat(destino,"\n"); //si el mensaje es correcto, se verifica si es enviado al actual cliente
+        char mensaje[MAXLINE] = {};
+        if(strcmp(destino,name) != 0){
+            return; //en caso de que no sea para el actual cliente, no muestra nada
+        }
+        indice = 0;
+        for(int j=i;j<strlen(messageReceived);j++){ //se separa el protocolo del mensaje
+            buffer[indice] = messageReceived[j];
+            indice++;
+        }
+        strcat(mensaje,"*"); //se añade un * para indiciar que es un mensaje privado
+        strcat(mensaje,origen); //se añade el origen
+        strcat(mensaje,": ");
+        strcat(mensaje,descrypt(buffer)); //se desencripta
+        printf("%s",mensaje); //se muestra
+        return;
     }
+    if(strlen(messageReceived) > 0){
+        strcat(buffer, origen); //si el mensaje no contiene el protocolo, se desencripta y se muestra con su origen
+        strcat(buffer, ": ");
+        strcat(buffer,descrypt(messageReceived));
+        printf("%s",buffer);
+    }
+    else{
+        printf("%s",descrypt(message)); //se muestran mensajes del servidor
+    }
+    return;
+    
 }
 
 
@@ -47,9 +114,7 @@ void send_echo(int sock)
     {
         char sendline [MAXLINE] = {};
         fgets(sendline, MAXLINE, stdin);
-        //protocolo(sendline,sock);
-        write(sock, sendline, strlen(sendline));
-
+        encrypt(sendline,sock);
     }
 }
 
@@ -58,8 +123,12 @@ void receive_echo(int sock)
     while(TRUE)
     {
         char recvline[MAXLINE] = {};
-        read(sock, recvline, MAXLINE);
-        printf("%s", recvline);
+        if(read(sock, recvline, MAXLINE) > 0){
+            protocol(recvline);
+        }
+        // char recvline[MAXLINE] = {};
+        // read(sock, recvline, MAXLINE);
+        // printf("%s", recvline);
     }
 }
 
@@ -67,7 +136,6 @@ int main(int argc, char* argv[])
 {
     int sock;
     char com[SIZE];
-    char name[MAXLINE] = {};
     struct sockaddr_in adr;
     struct hostent *hp, *gethostbyname();
 
@@ -106,11 +174,9 @@ int main(int argc, char* argv[])
     }
 
     printf("You have successfully connected\n");
-
+    
     write(sock,name,strlen(name));
-
     pthread_create(&pth_send, NULL, (void*)&send_echo, (void*)sock);
     receive_echo(sock);
-
     return 0;
 }
