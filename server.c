@@ -16,11 +16,10 @@
 
 int client_sockets[MAX_CLIENTS];
 int num_clients = 0;
-
 char *names[MAX_CLIENTS];
 char *ips[MAX_CLIENTS];
 
-
+pthread_mutex_t mutex;
 
 
 int createSocket(int *port, int type)
@@ -88,11 +87,6 @@ void send_message_to_all_clients(char *message,int sock)
 }
 
 void newClient(char *name,char *ip,int sock){
-    if(num_clients >= MAX_CLIENTS){
-        // gestionar cola de clientes
-        printf("Server full!\n");
-        return;
-    }
     int i;
     for(i = 0; i < MAX_CLIENTS; i++) {
         if(client_sockets[i] == 0) {
@@ -100,13 +94,21 @@ void newClient(char *name,char *ip,int sock){
             break;
         }
     }
+
+    pthread_mutex_lock(&mutex);
+    
     char *nname = strtok(name,"\n");
     names[i] = malloc(strlen(nname) + 1);
     strcpy(names[i],nname);
+    
+    
     num_clients++;   
+
     
     ips[i] = malloc(strlen(ip) + 1);
     strcpy(ips[i],ip);
+    
+    pthread_mutex_unlock(&mutex);
 
     printf("%s has connected from IP address %s\n",nname,ip);
     send_message_to_all_clients(concatenar(" has connected!\n",name,0),sock);
@@ -117,10 +119,16 @@ void desconectar(int id,int sock){
     printf("%s (%s) has disconnected\n",names[id],ips[id]);
     send_message_to_all_clients(concatenar(" has disconnected!\n",names[id],0),sock);
     close(client_sockets[id]);
+    
+    pthread_mutex_lock(&mutex);
+
     names[id] = "";
     ips[id] = "";
     client_sockets[id] = 0;
     num_clients--;
+
+    pthread_mutex_unlock(&mutex);
+
 }
 
 void service(int sock)
@@ -158,7 +166,8 @@ int main(int argc, char *argv[])
     struct sockaddr_in adr;
     int lgadr = sizeof(adr);
     int port = PORT;
-
+    
+    pthread_mutex_init(&mutex, NULL);
     pthread_t pth_send, pth_receive;
 
     if((listen_socket = createSocket(&port, SOCK_STREAM))==-1)
@@ -191,11 +200,18 @@ int main(int argc, char *argv[])
         else{
             perror("Error al conocer la ip");
         }
-
-        read(service_socket, name, MAXLINE);
-        newClient(name,client_ip,service_socket);
-        pthread_t service_thread_id;
-        pthread_create(&service_thread_id, NULL, service_thread, (void*)service_socket);
+        
+        if(num_clients == MAX_CLIENTS){
+            write(service_socket,"0", strlen("0"));
+            close(service_socket);
+        }
+        else{
+            write(service_socket,"1", strlen("1"));
+            read(service_socket, name, MAXLINE);
+            newClient(name,client_ip,service_socket);
+            pthread_t service_thread_id;
+            pthread_create(&service_thread_id, NULL, service_thread, (void*)service_socket);
+        }
     } 
     close(listen_socket);
     return 0;

@@ -173,7 +173,17 @@ int main(int argc, char* argv[])
         exit(4);
     }
 
+    char *succesfull;
+    succesfull = malloc(sizeof(char) * 1);
+    read(sock,succesfull,1);
+    if(strcmp(succesfull,"1") != 0){
+        printf("Server is full, please try again later!\n");
+        exit(1);
+    }
+    free(succesfull);
+    
     printf("You have successfully connected\n");
+    printf("Use _name_ to talk to someone in private!\n");
     
     write(sock,name,strlen(name));
     pthread_create(&pth_send, NULL, (void*)&send_echo, (void*)sock);
