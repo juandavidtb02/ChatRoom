@@ -86,6 +86,16 @@ void send_message_to_all_clients(char *message,int sock)
     }
 }
 
+int verifyName(char *name){
+    char *nname = strtok(name,"\n");
+    for(int i=0;i<MAX_CLIENTS;i++){
+        if(strcmp(nname,names[i]) == 0){
+            return 0;
+        }
+    }
+    return 1;
+}
+
 void newClient(char *name,char *ip,int sock){
     int i;
     for(i = 0; i < MAX_CLIENTS; i++) {
@@ -201,13 +211,18 @@ int main(int argc, char *argv[])
             perror("Error al conocer la ip");
         }
         
+        read(service_socket, name, MAXLINE);
         if(num_clients == MAX_CLIENTS){
             write(service_socket,"0", strlen("0"));
             close(service_socket);
         }
+        else if(verifyName(name) == 0){
+            write(service_socket,"2", strlen("2"));
+            close(service_socket);
+            
+        }
         else{
             write(service_socket,"1", strlen("1"));
-            read(service_socket, name, MAXLINE);
             newClient(name,client_ip,service_socket);
             pthread_t service_thread_id;
             pthread_create(&service_thread_id, NULL, service_thread, (void*)service_socket);

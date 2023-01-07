@@ -175,9 +175,16 @@ int main(int argc, char* argv[])
 
     char *succesfull;
     succesfull = malloc(sizeof(char) * 1);
+    
+    write(sock,name,strlen(name));
     read(sock,succesfull,1);
-    if(strcmp(succesfull,"1") != 0){
+
+    if(strcmp(succesfull,"0") == 0){
         printf("Server is full, please try again later!\n");
+        exit(1);
+    }
+    else if(strcmp(succesfull,"2") == 0){
+        printf("Name already exist, please try again!\n");
         exit(1);
     }
     free(succesfull);
@@ -185,7 +192,6 @@ int main(int argc, char* argv[])
     printf("You have successfully connected\n");
     printf("Use _name_ to talk to someone in private!\n");
     
-    write(sock,name,strlen(name));
     pthread_create(&pth_send, NULL, (void*)&send_echo, (void*)sock);
     receive_echo(sock);
     return 0;
