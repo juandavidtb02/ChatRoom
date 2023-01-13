@@ -6,6 +6,7 @@
 #include<netinet/in.h>
 #include<sys/socket.h>
 #include <pthread.h>
+#include <arpa/inet.h>
 
 //Constant
 #define PORT 8110
@@ -47,7 +48,7 @@ int createSocket(int *port, int type)
 
     length = sizeof(adr);
 
-    if(getsockname(sockfd, &adr, &length))
+    if(getsockname(sockfd, (struct sockaddr*) &adr, &length))
     {
         perror("Error: get sock name");
         exit(4);
@@ -62,9 +63,10 @@ int createSocket(int *port, int type)
 char *concatenar(char *message,char *name,int r){
     char *mensaje = malloc(MAXLINE);
     strcat(mensaje, name);
-    if(r!=0){
+    if(r != 0){
         strcat(mensaje, ": ");
     }
+    
     strcat(mensaje, message);
     if(r==0){
         for(int i=0;i<strlen(mensaje)-1;i++){
@@ -76,6 +78,7 @@ char *concatenar(char *message,char *name,int r){
 
 void send_message_to_all_clients(char *message,int sock)
 {
+    pthread_mutex_lock(&mutex);
     for (int i = 0; i < num_clients; i++)
     {
         if(client_sockets[i] != 0){
@@ -84,6 +87,7 @@ void send_message_to_all_clients(char *message,int sock)
             }
         }
     }
+    pthread_mutex_unlock(&mutex);
 }
 
 int verifyName(char *name){
@@ -121,13 +125,13 @@ void newClient(char *name,char *ip,int sock){
     pthread_mutex_unlock(&mutex);
 
     printf("%s has connected from IP address %s\n",nname,ip);
-    send_message_to_all_clients(concatenar(" has connected!\n",name,0),sock);
+    send_message_to_all_clients(concatenar("\033[0;32m has connected!\033[0m\n",name,0),sock);
 
 }
 
 void desconectar(int id,int sock){
     printf("%s (%s) has disconnected\n",names[id],ips[id]);
-    send_message_to_all_clients(concatenar(" has disconnected!\n",names[id],0),sock);
+    send_message_to_all_clients(concatenar("\033[0;31m has disconnected!\033[0m\n",names[id],0),sock);
     close(client_sockets[id]);
     
     pthread_mutex_lock(&mutex);
@@ -141,8 +145,39 @@ void desconectar(int id,int sock){
 
 }
 
-void service(int sock)
+int isCommand(char *message,int sock,int id){
+    if(message[0]-1 != '/'){
+        return 0;
+    }
+    char sub_str[8];
+    for(int i=0;i<6;i++){
+        sub_str[i] = message[i+1]-1;
+    }
+    if(strcmp(sub_str,"online") != 0){
+        return 0;
+    }
+    printf("%s have requested /%s command\n",names[id],sub_str);
+    char mensaje[MAXLINE] = {};
+    strcat(mensaje,"Online users: \n");
+    for (int i = 0; i < 5; i++)
+    {
+        if(names[i] != ""){
+            strcat(mensaje,"- ");
+            strcat(mensaje,names[i]);
+            strcat(mensaje,"\n");
+        }
+    }
+    for(int i=0;i<strlen(mensaje)-1;i++){
+            mensaje[i] = mensaje[i]+1;
+    }
+    write(sock,mensaje,strlen(mensaje));
+    return 1;
+
+}
+
+void *service(void *arg)
 {
+    int sock = (long)arg;
     int id = 0;
     for(int i=0;i<num_clients;i++){
         if(sock == client_sockets[i]){
@@ -158,23 +193,19 @@ void service(int sock)
             desconectar(id,sock);
             shutdown(sock, SHUT_RDWR);
             pthread_detach(pthread_self());
-            return;
+            return NULL;
         }
-        send_message_to_all_clients(concatenar(line,names[id],r),sock);
+        if(isCommand(line,sock,id) == 0){
+            send_message_to_all_clients(concatenar(line,names[id],r),sock);
+        }
     }
 }
 
-void *service_thread(void *arg) {
-    int sock = (int)arg;
-    service(sock);
-    return NULL;
-}
 
 int main(int argc, char *argv[])
 {
     int listen_socket, service_socket;
     struct sockaddr_in adr;
-    int lgadr = sizeof(adr);
     int port = PORT;
     
     pthread_mutex_init(&mutex, NULL);
@@ -200,9 +231,9 @@ int main(int argc, char *argv[])
     {
         char name[MAXLINE] = {};
         char client_ip[INET_ADDRSTRLEN];
-        lgadr = sizeof(adr);
-        service_socket = accept(listen_socket, &adr, &lgadr);
-        if(getpeername(service_socket,(struct sockaddr*)&adr,&client_addr_len == 0)){
+        socklen_t lgadr = sizeof(adr);
+        service_socket = accept(listen_socket, (struct sockaddr *) &adr, &lgadr);
+        if(getpeername(service_socket,(struct sockaddr*)&adr,&client_addr_len) == 0){
             inet_ntop(AF_INET,&adr.sin_addr,client_ip,INET_ADDRSTRLEN);
             //printf("El cliente se conecto desde la direccion IP %s\n",client_ip);
 
@@ -225,7 +256,8 @@ int main(int argc, char *argv[])
             write(service_socket,"1", strlen("1"));
             newClient(name,client_ip,service_socket);
             pthread_t service_thread_id;
-            pthread_create(&service_thread_id, NULL, service_thread, (void*)service_socket);
+            
+            pthread_create(&service_thread_id, NULL, service, (void*)(long)service_socket);
         }
     } 
     close(listen_socket);

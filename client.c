@@ -4,6 +4,8 @@
 #include<sys/socket.h>
 #include<netdb.h>
 #include<pthread.h>
+#include <string.h>
+#include <unistd.h>
 
 //Constant
 #define SIZE 256
@@ -106,6 +108,18 @@ void protocol(char *message){
     
 }
 
+// void command(int sock){
+//     char array[5][SIZE];
+//     printf("Usua: \n");
+//     recv(sock, array, sizeof(array), 0);
+//     printf("Usuarios conectados: \n");
+//     for(int i=0;i<5;i++){
+//         if(strcmp(array[i],"") != 0){
+//             printf("- %s\n",array[i]);
+//         }
+//     }
+// }
+
 
 
 void send_echo(int sock)
@@ -167,7 +181,7 @@ int main(int argc, char* argv[])
     adr.sin_port = htons(atoi(argv[2]));
     bcopy(hp->h_addr, &adr.sin_addr, hp->h_length);
 
-    if(connect(sock, &adr, sizeof(adr))==-1)
+    if(connect(sock, (struct sockaddr*) &adr, sizeof(adr))==-1)
     {
         perror("Error: connection failed");
         exit(4);
@@ -190,9 +204,11 @@ int main(int argc, char* argv[])
     free(succesfull);
     
     printf("You have successfully connected\n");
+    printf("---------- WELCOME TO CHATROOM ----------\n");
     printf("Use _name_ to talk to someone in private!\n");
+    printf("Use /online to see online users!\n\n");
     
-    pthread_create(&pth_send, NULL, (void*)&send_echo, (void*)sock);
+    pthread_create(&pth_send, NULL, (void* (*)(void*))&send_echo, (void*)(long)sock);
     receive_echo(sock);
     return 0;
 }
