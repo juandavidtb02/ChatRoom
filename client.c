@@ -108,19 +108,6 @@ void protocol(char *message){
     
 }
 
-// void command(int sock){
-//     char array[5][SIZE];
-//     printf("Usua: \n");
-//     recv(sock, array, sizeof(array), 0);
-//     printf("Usuarios conectados: \n");
-//     for(int i=0;i<5;i++){
-//         if(strcmp(array[i],"") != 0){
-//             printf("- %s\n",array[i]);
-//         }
-//     }
-// }
-
-
 
 void send_echo(int sock)
 {
@@ -206,7 +193,8 @@ int main(int argc, char* argv[])
     printf("You have successfully connected\n");
     printf("---------- WELCOME TO CHATROOM ----------\n");
     printf("Use _name_ to talk to someone in private!\n");
-    printf("Use /online to see online users!\n\n");
+    printf("Use /online to see online users!\n");
+    printf("-----------------------------------------\n\n");
     
     pthread_create(&pth_send, NULL, (void* (*)(void*))&send_echo, (void*)(long)sock);
     receive_echo(sock);
